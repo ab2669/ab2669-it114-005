@@ -1,3 +1,4 @@
+//UCID: ab2669 Date: 09/25/23 //attempting to fix Problem 3
 import java.util.Arrays;
 
 public class Problem3 
@@ -15,28 +16,60 @@ public class Problem3
         bePositive(a3);
         bePositive(a4);
     }
-
-    // <T> turns this into a generic so it can take in any datatype, it'll be passed as an Object so casting is required
-    static <T> void bePositive(T[] arr)
+    
+    static <T> void bePositive(T[] arr) 
     {
         System.out.println("Processing Array:" + Arrays.toString(arr));
-        //your code should set the indexes of this array
-        Object[] output = new Object[arr.length];
-        //hint: use the arr variable; don't diretly use the a1-a4 variables
-        //TODO convert each value to positive
-        //set the result to the proper index of the output array
-        //hint: don't forget to handle the data types properly, the result datatype should be the same as the original datatype
-        
-        //end edit section
+
+        T[] output = Arrays.copyOf(arr, arr.length);
+
+        for (int i = 0; i < arr.length; i++) 
+        {
+            if (arr[i] instanceof Integer) 
+            {
+                int intValue = (Integer) arr[i];
+                if (intValue < 0) 
+                {
+                    output[i] = (T) (Integer) (-intValue);
+                }
+            } 
+            /////////////
+            else if (arr[i] instanceof Double) 
+            {
+                double doubleValue = (Double) arr[i];
+                if (doubleValue < 0) 
+                {
+                    output[i] = (T) (Double) (-doubleValue); // Convert to positive and cast back to T
+                }
+            } 
+            /////////////
+            else if (arr[i] instanceof String) 
+            {
+                try 
+                {
+                    double doubleValue = Double.parseDouble((String) arr[i]);
+                    if (doubleValue < 0) 
+                    {
+                        output[i] = (T) (String) String.valueOf(-doubleValue); 
+                    }
+                } 
+                catch (NumberFormatException e) 
+                {
+                    
+                    System.out.println("Invalid string value: " + arr[i]);
+                }
+                
+            }
+        }
 
         StringBuilder sb = new StringBuilder();
-        for(Object i : output)
+        for (Object i : output) 
         {
-            if(sb.length() > 0)
+            if (sb.length() > 0) 
             {
                 sb.append(",");
             }
-            sb.append(String.format("%s (%s)", i, i.getClass().getSimpleName().substring(0,1)));
+            sb.append(String.format("%s (%s)", i, i.getClass().getSimpleName().substring(0, 1)));
         }
         System.out.println("Result: " + sb.toString());
     }
