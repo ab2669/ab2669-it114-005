@@ -18,13 +18,19 @@ public class Problem1
 
     static void processArray(int[] arr)
     {
-        System.out.println("Processing Array:" + Arrays.toString(arr));
+        System.out.println("Processing Array:" + Arrays.toString(arr)); 
+        /*   *****Above******
+        Arrays.toString(arr) converts parameter arr (arr is passing through what is assigned to in main in order)
+        */
         System.out.println("Odds output:");
-        //hint: use the arr variable; don't diretly use the a1-a4 variables
+        
         //TODO add/edit code here
-        for (int num : arr)
+        for (int num : arr) 
+        /*
+        tempororary num is being processed and arr is the parameter that you want to iterate through 
+        */  
         {
-            if (num % 2 != 0)
+            if (num % 2 != 0) //if num is NOT(!) even, print out the number + a space
             {
                 System.out.print(num + " ");
             }
