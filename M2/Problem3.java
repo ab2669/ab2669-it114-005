@@ -1,4 +1,4 @@
-//UCID: ab2669 Date: 09/25/23 //attempting to fix Problem 3
+
 import java.util.Arrays;
 
 public class Problem3 

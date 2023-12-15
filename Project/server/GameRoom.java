@@ -25,6 +25,9 @@ public class GameRoom extends Room
     private Board board;
     private List<ServerThread> clients = new ArrayList<>();
     private long playerId;
+    private List<String> drawingWords = new ArrayList<>();
+    private String wordToDraw;
+    protected Phase phase;
 
     public void setPlayerId(long playerId)
     {
@@ -36,20 +39,10 @@ public class GameRoom extends Room
         return playerId;
     }
     
-    protected Phase phase;
     public List<ServerThread> getClients()
     {
         return clients;
     }
-
-    /*
-    ab2669 
-    11/14/23
-    6) Randomly pick a word from a list to draw
-    */
-
-    private List<String> drawingWords = new ArrayList<>();
-    private String wordToDraw;
 
     public GameRoom(String name, int maxClients, long roomId, Board board)
     {
@@ -59,7 +52,7 @@ public class GameRoom extends Room
         initializeDrawingWords();
     }
 
-    ///
+    //Board - START
     public void initializeBoard()
     {
         this.board = new Board(20,20);
@@ -80,6 +73,7 @@ public class GameRoom extends Room
         return board;
     }
 
+    // Actions when /startguess command is started
     private void initializeDrawingWords()
     {
         drawingWords.add("Dog");
@@ -96,76 +90,59 @@ public class GameRoom extends Room
     {
         Random random = new Random();
         int index = random.nextInt(drawingWords.size());
-        //String word = drawingWords.get(index);
         return drawingWords.get(index);
     }
 
-    public void broadcastStartGuess(Payload payload) {
+    public void broadcastStartGuess(Payload payload) 
+    {
         Payload startGuessPayload = new Payload();
         startGuessPayload.setPayloadType(PayloadType.START_GUESS);
     
-        // Check if the payload is null or if it's meant for all clients
-        if (payload == null || payload.getClientId() == -1) {
+        if (payload == null || payload.getClientId() == -1) 
+        {
             sendMessage(null, "Guessing phase started! You have 2 minutes to draw: ");
-        } else {
-            // Send the word to draw only to the client who initiated /startguess
+        } 
+        else 
+        {
             sendMessage(getClientById(payload.getClientId()), "Starting a new round. Word to draw: " + payload.getMessage());
         }
-    
         broadcast(startGuessPayload);
     }
-    
     
     public synchronized void processGuess(ServerThread client, String guessedWord) throws IOException 
     {
         if (guessedWord.equalsIgnoreCase(wordToDraw)) 
         {
-        // Guessed correctly
         String correctGuessMessage = String.format("%s guessed the correct word!", client.getClientName());
         sendMessage(client, correctGuessMessage);
-
-        // You might want to handle additional logic here, e.g., ending the round.
         } 
         else 
         {
-        // Incorrect guess
         String incorrectGuessMessage = String.format("%s guessed: %s (incorrect)", client.getClientName(), guessedWord);
         sendMessage(client, incorrectGuessMessage);
-        // You might want to handle additional logic here, e.g., penalizing the player.
         }
     }
     
-    public void notifyIncorrectGuess(long clientId) {
+    public void notifyIncorrectGuess(long clientId) 
+    {
         Payload payload = new Payload();
-    payload.setPayloadType(PayloadType.INCORRECT_GUESS);
-
-    // Customize the message or payload as needed
-    payload.setMessage("Your guess is incorrect!");
-
-    sendPayload(getClientById(clientId), payload);
+        payload.setPayloadType(PayloadType.INCORRECT_GUESS);
+        payload.setMessage("Your guess is incorrect!");
+        sendPayload(getClientById(clientId), payload);
     }
-    public void broadcastCorrectGuess(long clientId, String correctWord) {
+    
+    public void broadcastCorrectGuess(long clientId, String correctWord) 
+    {
         Payload correctGuessPayload = new Payload();
         correctGuessPayload.setPayloadType(PayloadType.CORRECT_GUESS);
     
-        // You may want to customize the message based on your needs
         String message = "Congratulations! Player " + clientId + " guessed the word: " + correctWord;
         correctGuessPayload.setMessage(message);
-    
-        // Broadcast the correct guess to all clients
         broadcast(correctGuessPayload);
-        // You can add more logic here based on your game requirements
     }
 
     public void startNewRound()
     {
-        /* 
-        getClients();
-        if (!clients.isEmpty()) 
-        {
-            setPlayerId(clients.get(0).getClientId());
-        }
-        */
         logger.info("Starting a new round");
         int timerDuration = 20;
         readyTimer = new TimedEvent(timerDuration, () -> {}, () -> endGuessingPhase());
@@ -173,9 +150,7 @@ public class GameRoom extends Room
         wordToDraw = pickWordToDraw();
         logger.info("Word to draw: " + wordToDraw);
         broadcastNewRound();
-
     }
-
 
     private void endGuessingPhase()
     {
@@ -194,14 +169,11 @@ public class GameRoom extends Room
         {
             client.send(newRoundPayload);
         }
-        //String message = String.format("Starting a new round. Word to draw: %s", wordToDraw);
-        //sendMessage(null, message);
     }
 
     public void endRound()
     {
         broadcastRoundEnd();
-        //startNewRound();
     }
 
     private void broadcastRoundEnd()
@@ -214,8 +186,8 @@ public class GameRoom extends Room
     {
         return false;
     }
-    ///
-
+    // End of Guess Implementation
+    
     @Override
     protected void addClient(ServerThread client) 
     {
@@ -263,9 +235,6 @@ public class GameRoom extends Room
         {
             return;
         }
-        // two examples for the same result
-        // int numReady = players.values().stream().mapToInt((p) -> p.isReady() ? 1 :
-        // 0).sum();
         long numReady = players.values().stream().filter(ServerPlayer::isReady).count();
         if (numReady >= Constants.MINIMUM_PLAYERS) 
         {
@@ -319,8 +288,7 @@ public class GameRoom extends Room
             return;
         }
         currentPhase = phase;
-        // NOTE: since the collection can yield a removal during iteration, an iterator
-        // is better than relying on forEach
+
         Iterator<ServerPlayer> iter = players.values().stream().iterator();
         while (iter.hasNext()) 
         {

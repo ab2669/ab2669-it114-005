@@ -8,14 +8,17 @@ public class Payload implements Serializable
     private PayloadType payloadType;
     private Board board;
     
-    /*
-    ab2669 
-    11/14/23
-    Passes Coordinates and and colors from client to server
-    */
+    //ab2669
+    //Following methods sets up board parameters amd passes coordinates and colors from
+    //client to server
     private int x;
     private int y;
+    private int lastX;
+    private int lastY;
     private String color;
+    private String message;
+    private long clientId;
+    private String clientName;
     private PayloadType type;
     
     public int getX()
@@ -52,9 +55,7 @@ public class Payload implements Serializable
     {
         this.type = type;
     }
-    ///
 
-    ///
     public Board getBoard()
     {
         return board;
@@ -64,16 +65,7 @@ public class Payload implements Serializable
     {
         this.board = board;
     }
-    /*
-    ab2669 
-    11/14/23
-    2) Only send updates if the coordinates change
-    */
-
-    private int lastX;
-    private int lastY;
     
-    ///
 
     public PayloadType getPayloadType() 
     {
@@ -85,18 +77,25 @@ public class Payload implements Serializable
         this.payloadType = payloadType;
     }
 
-    private String clientName;
-
     public String getClientName()
     {
         return clientName;
     }
 
-    /*
-    ab2669 
-    11/14/23
-    2) Only send updates if the coordinates change
-    */
+    public void setClientName(String clientName) 
+    {
+        this.clientName = clientName;
+    }
+
+    public long getClientId() 
+    {
+        return clientId;
+    }
+
+    public void setClientId(long clientId)
+    {
+        this.clientId = clientId;
+    }
 
     public Payload()
     {
@@ -113,32 +112,9 @@ public class Payload implements Serializable
         lastX = x;
         lastY = y;
     }
-    
-    ///
 
-    public void setClientName(String clientName) 
-    {
-        this.clientName = clientName;
-    }
-
-    private long clientId;
-
-    public long getClientId() 
-    {
-        return clientId;
-    }
-
-    public void setClientId(long clientId)
-    {
-        this.clientId = clientId;
-    }
-
-    /*
-    ab2669 
-    11/14/23
-    5) Clear boards when the game timer or when a correct guess is guessed
-    */
-
+    //ab2669 11/14/23
+    //Clear boards when the game timer or when a correct guess is guessed
     public void clearBoard()
     {
         x = 0;
@@ -147,10 +123,6 @@ public class Payload implements Serializable
         lastX = 0;
         lastY = 0;
     }
-
-    ///
-
-    private String message;
 
     public String getMessage() 
     {
@@ -167,9 +139,5 @@ public class Payload implements Serializable
     {
         return String.format("Payload {ClientID:%d, ClientName:%s, Message:%s, x:%d, y:%d, Color:%s}",
         clientId, clientName, message, x, y, color);
-        //changed format
-                /*("Type[%s],ClientId[%s,] ClientName[%s], Message[%s]", getPayloadType().toString(),
-                getClientId(), getClientName(),
-                getMessage());*/
     }
 }

@@ -25,7 +25,6 @@ public class Room implements AutoCloseable
     private final static String LOGOFF = "logoff";
     private static Logger logger = Logger.getLogger(Room.class.getName());
 
-    ///START
     public Room(String name, int maxClients, long roomId, Board board) 
 	{
         this.name = name;
@@ -33,7 +32,6 @@ public class Room implements AutoCloseable
         this.board = board;
     }
 
-    ///
     protected void broadcast(String message)
     {
         Payload payload = new Payload();
@@ -56,22 +54,11 @@ public class Room implements AutoCloseable
             }
         }
     }
-    ///
+    
     public Board getBoard()
     {
         return board;
     }
-
-    /* 
-    protected void broadcastBoardUpdate(Board board)
-    {
-        Payload payload = new Payload();
-        payload.setType(PayloadType.BOARD_UPDATE);
-        payload.setBoard(board);
-        broadcast(payload);
-    }
-        */
-    ///END
 
     public String getName() 
 	{
@@ -82,7 +69,8 @@ public class Room implements AutoCloseable
 	{
         return isRunning;
     }
-    ///START
+    
+    //Board implementation
     protected synchronized void handleBoardCommand(ServerThread sender, int x, int y, String color)
     {
 
@@ -97,60 +85,7 @@ public class Room implements AutoCloseable
             broadcastBoardUpdate(sender.getClientId(), payload);
         }
     }
-    /*
-    protected synchronized void broadcastBoardUpdate(long senderClientId, Payload payload)
-    {
-        Iterator<ServerThread> iter = clients.iterator();
-    while (iter.hasNext())
-    {
-        ServerThread client = iter.next();
-
-        // Check if the client is not the sender
-        if (client.getClientId() != senderClientId);
-        {
-            try
-            {
-                boolean messageSent = client.sendBoardUpdate(payload.getBoard());
-                if (!messageSent)
-                {
-                    handleDisconnect(iter, client);
-                }
-            }
-            catch (IOException e)
-            {
-                e.printStackTrace();
-                handleDisconnect(iter, client);
-            }
-        }
-    }
-
-    // Print the updated board on the server side
-    if (board != null && payload.getBoard() != null)
-    {
-        System.out.println("Updated Board:");
-        payload.getBoard().printBoard();
-    }
-        /* 
-        for (ServerThread client : clients)
-        {
-            if (client.getClientId() != senderClientId)
-            {
-                try
-                {
-                    client.send(payload);
-                }
-                catch (Exception e)
-                {
-                    logger.warning("Failed to broadcast board update to client " + client.getClientId());
-                }
-            }
-        }
-    }
-    */
-
-    ///
-    // Room.java
-
+    
     protected synchronized void broadcastBoardUpdate(long senderClientId, Payload payload)
     {
         Iterator<ServerThread> iter = clients.iterator();
@@ -171,21 +106,38 @@ public class Room implements AutoCloseable
                 } 
                 catch (IOException e) 
                 {
-                    // Handle the IOException, you may choose to log it or take other actions.
                     e.printStackTrace();
                     handleDisconnect(iter, client);
                 }
             }
         }
     
-        // Print the updated board on the server side
         if (board != null && payload.getBoard() != null)
         {
             System.out.println("Updated Board:");
             payload.getBoard().printBoard();
         }
     }
-///
+
+    protected synchronized void broadcastCoordinatesAndColor(long senderClientId, int x, int y, String color)
+	{
+		Iterator<ServerThread> iter = clients.iterator();
+		while (iter.hasNext())
+		{
+			ServerThread client = iter.next();
+
+			if(client.getClientId() != senderClientId)
+			{
+				boolean messageSent = client.sendCoordinatesAndColor(senderClientId, x, y, color);
+				if (!messageSent)
+				{
+					handleDisconnect(iter, client);
+				}
+			}
+		}
+	}
+
+    //End of board implementation
 
     protected synchronized void addClient(ServerThread client) 
 	{
@@ -252,7 +204,6 @@ public class Room implements AutoCloseable
 
     private void checkClients() 
 	{
-        // Cleanup if room is empty and not lobby
         if (!name.equalsIgnoreCase(Constants.LOBBY) && (clients == null || clients.size() == 0)) 
 		{
             close();
@@ -352,7 +303,7 @@ public class Room implements AutoCloseable
                 return client;
             }
         }
-        return null; // Return null if the client with the specified ID is not found
+        return null;
     }
 
     protected synchronized void sendMessage(ServerThread sender, String message) 
@@ -364,7 +315,6 @@ public class Room implements AutoCloseable
         logger.info(String.format("Sending message to %s clients", clients.size()));
         if (sender != null && processCommands(message, sender)) 
 		{
-            // it was a command, don't broadcast
             return;
         }
         long from = sender == null ? Constants.DEFAULT_CLIENT_ID : sender.getClientId();
@@ -380,26 +330,30 @@ public class Room implements AutoCloseable
         }
     }
 
-    protected synchronized void sendPayload(ServerThread sender, Payload payload) {
-        if (!isRunning) {
+    protected synchronized void sendPayload(ServerThread sender, Payload payload)
+    {
+        if (!isRunning) 
+        {
             return;
         }
     
         logger.info(String.format("Sending payload to %s clients", clients.size()));
     
-        if (sender != null && processCommands(payload.getMessage(), sender)) {
-            // It was a command, don't broadcast
+        if (sender != null && processCommands(payload.getMessage(), sender)) 
+        {
             return;
         }
     
         long from = sender == null ? Constants.DEFAULT_CLIENT_ID : sender.getClientId();
         Iterator<ServerThread> iter = clients.iterator();
     
-        while (iter.hasNext()) {
+        while (iter.hasNext()) 
+        {
             ServerThread client = iter.next();
             boolean messageSent = client.sendPayload(from, payload);
             
-            if (!messageSent) {
+            if (!messageSent) 
+            {
                 handleDisconnect(iter, client);
             }
         }
@@ -421,26 +375,6 @@ public class Room implements AutoCloseable
             }
         }
     }
-
-	///START
-	protected synchronized void broadcastCoordinatesAndColor(long senderClientId, int x, int y, String color)
-	{
-		Iterator<ServerThread> iter = clients.iterator();
-		while (iter.hasNext())
-		{
-			ServerThread client = iter.next();
-
-			if(client.getClientId() != senderClientId)
-			{
-				boolean messageSent = client.sendCoordinatesAndColor(senderClientId, x, y, color);
-				if (!messageSent)
-				{
-					handleDisconnect(iter, client);
-				}
-			}
-		}
-	}
-    ///END
 
     protected void handleDisconnect(Iterator<ServerThread> iter, ServerThread client) 
 	{
