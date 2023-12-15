@@ -23,90 +23,46 @@ public class ServerThread extends Thread
     protected Socket client;
     private String clientName;
     private boolean isRunning = false;
-    private ObjectOutputStream out;// exposed here for send()
-    // private Server server; ref to our server so we can call methods on it more easily
+    private ObjectOutputStream out;
     protected Room currentRoom;
     private static Logger logger = Logger.getLogger(ServerThread.class.getName());
     private long myClientId;
     private List<ServerThread> clients;
     private static Map<Long, String> clientColors = new HashMap<>();
     private Socket socket;
-
-    /*
-    ab2669 
-    11/14/23
-    3) Client and Server should have a "board reference"
-    */
-   private Board board;
+    //
+    private Board board;
     
-    ///
-
-    /*
-    ab2669 
-    11/14/23
-    7) Players can guess as many times as they want during the round    
-    */
-    
-    //private boolean canGuess = false;
-
-    ///
-
-    /*
-    ab2669 
-    11/14/23
-    8) The round ends only if a player guesses correctly or if the timer expires
-    */
-
-    //private boolean roundEnded = false;
-
-    ///
-
-    /*
-    ab2669 
-    11/14/23
-    4) Client and Server boards should stay in sync
-    */
-    /* 
-    public int[][] getBoard()
+    public void sendPayload(Payload payload) 
     {
-        return board;
-    }
-    */
-
-    public void fillCell(int x, int y, String color)
-    {
-        board.fillCell(x, y, color);
-    }
-    ///
-
-    public void sendPayload(Payload payload) {
-        try {
+        try 
+        {
             out.writeObject(payload);
             out.flush();
-        } catch (IOException e) {
+        } 
+        catch (IOException e) 
+        {
             logger.warning("Error sending payload: " + e.getMessage());
-            e.printStackTrace();  // Handle the exception based on your requirements
+            e.printStackTrace();
         }
     }
     
-    public boolean sendPayload(long from, Payload payload) {
-        try {
-            // Set the sender's ID in the payload
+    public boolean sendPayload(long from, Payload payload) 
+    {
+        try 
+        {
             payload.setClientId(from);
-    
-            // Send the payload to the client
             out.writeObject(payload);
             out.flush();
-    
-            return true;  // Return true to indicate successful sending
-        } catch (IOException e) {
+            return true;
+        } catch (IOException e) 
+        {
             logger.warning("Error sending payload: " + e.getMessage());
-            e.printStackTrace();  // Handle the exception based on your requirements
-            return false;  // Return false to indicate failure
+            e.printStackTrace();
+            return false;
         }
     }
     
-
     public void setClientId(long id) 
     {
         myClientId = id;
@@ -138,19 +94,10 @@ public class ServerThread extends Thread
         this.board = board;
     }
 
-    
-
-    public ServerThread(Socket myClient, Room room, Board board, List<ServerThread> clients) 
+    public void fillCell(int x, int y, String color)
     {
-        logger.info("ServerThread created");
-        // get communication channels to single client
-        this.client = myClient;
-        this.currentRoom = room;
-        this.board = board;
-        this.clients = clients;
-
+        board.fillCell(x, y, color);
     }
-
 
     protected void setClientName(String name) 
     {
@@ -190,6 +137,16 @@ public class ServerThread extends Thread
         logger.info("Thread being disconnected by server");
         isRunning = false;
         cleanup();
+    }
+
+    public ServerThread(Socket myClient, Room room, Board board, List<ServerThread> clients) 
+    {
+        logger.info("ServerThread created");
+        this.client = myClient;
+        this.currentRoom = room;
+        this.board = board;
+        this.clients = clients;
+
     }
 
     // send methods
@@ -295,21 +252,20 @@ public class ServerThread extends Thread
         catch (IOException e) 
         {
             logger.info("Error sending message to client (most likely disconnected)");
-            // uncomment this to inspect the stack trace
-            // e.printStackTrace();
+            e.printStackTrace();
             cleanup();
             return false;
         } 
         catch (NullPointerException ne) 
         {
             logger.info("Message was attempted to be sent before outbound stream was opened: " + payload);
-            // uncomment this to inspect the stack trace
-            // e.printStackTrace();
-            return true;// true since it's likely pending being opened
+            //e.printStackTrace();
+            return true;
         }
     }
 
     // end send methods
+
     @Override
     public void run() 
     {
@@ -319,12 +275,12 @@ public class ServerThread extends Thread
             this.out = out;
             isRunning = true;
             Payload fromClient;
-            // flag to let us easily control the loop
-            // reads an object from inputStream (null would likely mean a disconnect)
+            
             while (isRunning && (fromClient = (Payload) in.readObject()) != null) 
             {
                 logger.info("Received from client: " + fromClient);
                 processPayload(fromClient);
+                handleMessage(fromClient);
 
                 if (fromClient.getPayloadType() == PayloadType.MESSAGE)
                 {
@@ -339,7 +295,7 @@ public class ServerThread extends Thread
                     processPayload(fromClient);
                 }
                 
-            } // close while loop
+            }
         } 
         catch (IOException | ClassNotFoundException e) 
         {
@@ -353,35 +309,24 @@ public class ServerThread extends Thread
             logger.info("Exited thread loop. Cleaning up connection");
             cleanup();
         }
-
-
     }
 
-    /*
-    ab2669 
-    11/14/23
-    7) Handle Player Guesses
-    */
-    /* 
-    private void handleGuess(Payload guessPayload)
-    {
-        if (canGuess && !roundEnded)
-        {
-            boolean correctGuess = checkCorrectGuess(guessPayload.getMessage());
-
-            if (correctGuess)
-            {
-                handleCorrectGuess();
-            }
-            else
-            {
-                handleIncorrectGuess(guessPayload.getMessage());
+    private void handleMessage(Payload payload) {
+        if (payload.getPayloadType() == PayloadType.MESSAGE) {
+            String message = payload.getMessage();
+            if (message != null) {
+                if (message.startsWith("/guess")) {
+                    handleGuessCommand(payload);
+                } else {
+                    // If it's not a guess command, treat it as a regular message
+                    Room currentRoom = getCurrentRoom();
+                    if (currentRoom != null) {
+                        currentRoom.sendMessage(this, message);
+                    }
+                }
             }
         }
     }
-    */
-    
-    ///
 
     private void processPayload(Payload p) 
     {
@@ -461,57 +406,11 @@ public class ServerThread extends Thread
                 break;
             default:
                 break;
-
         }
 
     }
 
-    ///////////////////////////////////////
-
-    /*
-    private void handleGuess(Payload guessPayload)
-    {
-        if (canGuess && !roundEnded)
-        {
-            Room currentRoom = getCurrentRoom();
-        
-            if (currentRoom instanceof GameRoom)
-            {
-                GameRoom currentGameRoom = (GameRoom) currentRoom;
-                if (canGuess & !roundEnded)
-                {
-                    boolean correctGuess = checkCorrectGuess(guessPayload.getMessage());
-
-                    if (correctGuess)
-                    {
-                        handleCorrectGuess(currentGameRoom);
-                    }
-                    else
-                    {
-                        handleIncorrectGuess(guessPayload.getMessage());
-                    }
-                }
-            }
-        }
-    }
-    
-private void handleCorrectGuess(GameRoom currentGameRoom)
-{
-    roundEnded = true;
-    canGuess = false;
-
-    if (currentGameRoom.isRoundComplete())
-    {
-        currentGameRoom.startNewRound();
-    }
-}
-
-private void handleIncorrectGuess(String guess)
-    {
-        sendMessage(Constants.DEFAULT_CLIENT_ID, "Incorrect guess: " + guess);
-    }
-    */
-    ///////////////////////////////////////
+    //
     private void handleCoordinatesAndColor(int x, int y, String color)
     {
         currentRoom.broadcastCoordinatesAndColor(myClientId, x, y, color);
@@ -526,25 +425,15 @@ private void handleIncorrectGuess(String guess)
             currentGameRoom.processGuess(this, guessedWord);
         }
     }
-    
+
     private void handleGuessCommand(Payload commandPayload) {
         try {
-            // Assuming you have a reference to the current GameRoom for this client
-            GameRoom currentGameRoom = (GameRoom) getCurrentRoom();
-            setCurrentRoom(currentGameRoom);
+            Room currentRoom = getCurrentRoom();
     
-            if (currentGameRoom != null && isPlayer()) {
-                String message = commandPayload.getMessage();
-    
-                if (message != null && message.startsWith("/guess")) {
-                    // Extract the guessed word from the command (assuming it's in the format "/guess <word>")
-                    String[] parts = message.split(" ");
-                    if (parts.length >= 2) {
-                        String guessedWord = parts[1];
-                        currentGameRoom.processGuess(this, guessedWord);
-                    } else {
-                        logger.warning("Invalid /guess command. Usage: /guess <word>");
-                    }
+            if (commandPayload.getPayloadType() == PayloadType.MESSAGE) {
+                // Handle regular chat message (e.g., broadcast it to the room)
+                if (currentRoom != null) {
+                    currentRoom.sendMessage(this, commandPayload.getMessage());
                 }
             }
         } catch (Exception e) {
@@ -554,163 +443,44 @@ private void handleIncorrectGuess(String guess)
     }
     
     
+    
+
 
     /*
-    private void sendGuess(String guessedWord) {
-        Payload guessPayload = new Payload();
-        guessPayload.setPayloadType(PayloadType.GUESS);
-        guessPayload.setMessage(guessedWord);
-    
-        // Send the guess payload to the server
-        sendPayload(guessPayload);
-    }
-    
-    
-    
-    private boolean checkCorrectGuess(String guess) {
-        String wordToDraw = ((GameRoom) currentRoom).getWordToDraw();
-        return guess.trim().equalsIgnoreCase(wordToDraw.trim());
-    }
-    
-    private void handleCorrectGuess() {
-        if (currentRoom instanceof GameRoom) {
-            GameRoom gameRoom = (GameRoom) currentRoom;
-    
-            roundEnded = true;
-            canGuess = false;
-    
-            if (gameRoom.isRoundComplete()) {
-                gameRoom.startNewRound();
-            }
-        }
-    }
-    
-    private void handleIncorrectGuess(String guess) {
-        sendMessage(Constants.DEFAULT_CLIENT_ID, "Incorrect guess: " + guess);
-    }
-    */
-    ///////////////////////////////////////
-    private void handleClientCommand(Payload commandPayload)
+    private void handleGuessCommand(Payload commandPayload) 
     {
-        String command = commandPayload.getMessage();
-
-        if (command.startsWith("/startguess"))
-        {
-            handleStartGuessCommand(commandPayload);
-        }
-    }
-
-    ///////////////////////////////////////
-    /*
-    private void handleStartGuessCommand(Payload commandPayload) 
-    {
-        try
-        {
-            Room currentRoom = getCurrentRoom();
-
-            if (currentRoom instanceof GameRoom)
-            {
-                GameRoom currentGameRoom = (GameRoom) currentRoom;
-
-                if (currentGameRoom != null && currentGameRoom.isWordToDrawAvailable())
-                {
-                    Payload payload = new Payload();
-                    payload.setPayloadType(PayloadType.START_GUESS);
-                    currentGameRoom.startNewRound();
-                    currentGameRoom.broadcastStartGuess();
-                }
-                else
-                {
-                    logger.warning("Cannot start guessing. Game room not initialized or word not available");
-                }
-            }
-            else
-            {
-                logger.warning("Cannot start guessing. Current room is not an instance of GameRoom.");
-            }
-        }
-        catch (Exception e) 
-        {
-            logger.warning("Error handling startguess command: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    */
-     
-    private void handleStartGuessCommand(Payload commandPayload) {
-        try {
-            Room currentRoom = getCurrentRoom();
-    
-            if (currentRoom instanceof GameRoom) {
-                GameRoom currentGameRoom = (GameRoom) currentRoom;
-    
-                if (isPlayer()) {
-                    String wordToDraw = currentGameRoom.getWordToDraw();
-                    if (wordToDraw != null && !wordToDraw.isEmpty()) {
-                        // Send the actual word to draw to the client who initiated /startguess
-                        sendStartGuessToPlayer(wordToDraw, commandPayload.getClientId());
-                    } else {
-                        logger.warning("Word to draw is not available.");
-                        return; // Exit the method if the word is not available for the player
-                    }
-                }
-    
-                // Notify clients about the new round or perform other necessary actions
-                currentGameRoom.startNewRound();
-                currentGameRoom.broadcastStartGuess(commandPayload);
-            } else {
-                logger.warning("Cannot start guessing. Game room not initialized.");
-            }
-        } catch (Exception e) {
-            logger.warning("Error handling startguess command: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    
-    
-    
-    
-    private void sendStartGuessToPlayer(String wordToDraw, long clientId) throws IOException 
-    {
-        Payload payload = new Payload();
-        payload.setPayloadType(PayloadType.START_GUESS);
-        payload.setMessage("Starting a new round. Word to draw: " + wordToDraw);
-    
-        // Set the ClientID of the player who initiated the /startguess command
-        payload.setClientId(clientId);
-    
-        // Send the payload to the specific client
-        sendPayloadToClient(payload, clientId);
-    }
-    
-/*
-    private void sendStartGuess(String guessedWord) 
-    {
-        Payload startGuessPayload = new Payload();
-        startGuessPayload.setPayloadType(PayloadType.START_GUESS);
-        startGuessPayload.setMessage(guessedWord);
-
         try 
         {
-            out.writeObject(startGuessPayload);
+            GameRoom currentGameRoom = (GameRoom) getCurrentRoom();
+            setCurrentRoom(currentGameRoom);
+    
+            if (currentGameRoom != null && isPlayer()) 
+            {
+                String message = commandPayload.getMessage();
+    
+                if (message != null && message.startsWith("/guess")) 
+                {
+                    String[] parts = message.split(" ");
+                    if (parts.length >= 2) 
+                    {
+                        String guessedWord = parts[1];
+                        currentGameRoom.processGuess(this, guessedWord);
+                    } 
+                    else 
+                    {
+                        logger.warning("Invalid /guess command. Usage: /guess <word>");
+                    }
+                }
+            }
         } 
-        catch (IOException e) 
+        catch (Exception e) 
         {
-            logger.warning("Failed to send START_GUESS payload to client " + getClientId());
+            logger.warning("Error handling guess command: " + e.getMessage());
             e.printStackTrace();
         }
     }
-*/
-    private boolean isPlayer()
-    {
-        if (clients == null || clients.isEmpty())
-        {
-            return false;
-        }
-        return myClientId < clients.get(0).getClientId();
-    }
-
-    ///////////////////////////////////////
+    */
+    
     private void handleColorUpdate(Payload p)
     {
         String color = p.getColor();
@@ -724,7 +494,6 @@ private void handleIncorrectGuess(String guess)
         }
     }
 
-    ///////////////////////////////////////
     private void handleBoardUpdate(Payload p)
     {
         Board updatedBoard = p.getBoard();
@@ -740,7 +509,6 @@ private void handleIncorrectGuess(String guess)
         }
     }
 
-    ///////////////////////////////////////
     private void broadcastColorUpdate(String color)
     {
         if (currentRoom != null)
@@ -749,20 +517,17 @@ private void handleIncorrectGuess(String guess)
         }
     }
 
-    ///////////////////////////////////////
     private String setCurrentColor(String color)
     {
         clientColors.put(myClientId, color);
         return color;
     }
 
-    ///////////////////////////////////////
     private String getCurrentColor()
     {
         return clientColors.getOrDefault(myClientId, "");
     }
 
-    ///////////////////////////////////////
     private void handleBoardCommand(Payload p)
     {
         int x = p.getX();
@@ -774,115 +539,151 @@ private void handleIncorrectGuess(String guess)
         if (currentGameRoom != null && currentGameRoom.getBoard() != null) 
         {
             currentGameRoom.getBoard().fillCell(x, y, color);
-
             currentGameRoom.broadcastBoardUpdate();
-            /* 
-            if (currentRoom instanceof GameRoom) {
-                GameRoom gameRoom = (GameRoom) currentRoom;
-                broadcastBoardUpdate(gameRoom);
-            } else {
-                logger.warning("Cannot broadcast board update. Room is not a GameRoom.");
-            }
-            */
         } 
         else 
         {
             logger.warning("Cannot handle board command. Room or board not initialized.");
         }
     }
-        /* 
-        GameRoom currentGameRoom = (GameRoom) getCurrentRoom();
 
-        if (currentGameRoom != null && currentGameRoom.getBoard() != null)
-        {
-            currentGameRoom.getBoard().fillCell(x, y , color);
-            broadcastBoardUpdate(currentGameRoom);
-        }
-        else
-        {
-            logger.warning("Cannot handle board command. Room or board not initialized.");
-        }
-        */
-    
-    // Inside ServerThread.java
-protected void broadcastBoardUpdate() 
-{
-    if (currentRoom != null) 
+    private void handleClientCommand(Payload commandPayload)
     {
-        List<ServerThread> roomClients = currentRoom.getClients();
-        for (ServerThread client : roomClients) 
+        String command = commandPayload.getMessage();
+
+        if (command.startsWith("/startguess"))
         {
-            if (client != this) 
+            handleStartGuessCommand(commandPayload);
+        }
+    }
+
+    private void handleStartGuessCommand(Payload commandPayload) 
+    {
+        try 
+        {
+            Room currentRoom = getCurrentRoom();
+    
+            if (currentRoom instanceof GameRoom) 
             {
-                try 
+                GameRoom currentGameRoom = (GameRoom) currentRoom;
+    
+                if (isPlayer()) 
                 {
-                    if (currentRoom instanceof GameRoom)
+                    String wordToDraw = currentGameRoom.getWordToDraw();
+                    if (wordToDraw != null && !wordToDraw.isEmpty()) 
                     {
-                        GameRoom gameRoom = (GameRoom) currentRoom;
-                        client.sendBoardUpdate(gameRoom.getBoard());
-                    }
-                    else
+                        sendStartGuessToPlayer(wordToDraw, commandPayload.getClientId());
+                    } 
+                    else 
                     {
-                        logger.warning("Cannot send board update. Room is not a GameRoom.");
+                        logger.warning("Word to draw is not available.");
+                        return;
                     }
-                } 
-                catch (IOException e) 
+                }
+                currentGameRoom.startNewRound();
+                currentGameRoom.broadcastStartGuess(commandPayload);
+            } 
+            else 
+            {
+                logger.warning("Cannot start guessing. Game room not initialized.");
+            }
+        } 
+        catch (Exception e) 
+        {
+            logger.warning("Error handling startguess command: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private void sendStartGuessToPlayer(String wordToDraw, long clientId) throws IOException 
+    {
+        Payload payload = new Payload();
+        payload.setPayloadType(PayloadType.START_GUESS);
+        payload.setMessage("Starting a new round. Word to draw: " + wordToDraw);
+    
+        payload.setClientId(clientId);
+    
+        sendPayloadToClient(payload, clientId);
+    }
+    
+    private boolean isPlayer()
+    {
+        if (clients == null || clients.isEmpty())
+        {
+            return false;
+        }
+        return myClientId < clients.get(0).getClientId();
+    }
+    
+    protected void broadcastBoardUpdate() 
+    {
+        if (currentRoom != null) 
+        {
+            List<ServerThread> roomClients = currentRoom.getClients();
+            for (ServerThread client : roomClients) 
+            {
+                if (client != this) 
                 {
-                    logger.warning("Failed to broadcast board update to client " + client.getClientId());
+                    try 
+                    {
+                        if (currentRoom instanceof GameRoom)
+                        {
+                            GameRoom gameRoom = (GameRoom) currentRoom;
+                            client.sendBoardUpdate(gameRoom.getBoard());
+                        }
+                        else
+                        {
+                            logger.warning("Cannot send board update. Room is not a GameRoom.");
+                        }
+                    } 
+                    catch (IOException e) 
+                    {
+                        logger.warning("Failed to broadcast board update to client " + client.getClientId());
+                    }
                 }
             }
-        }
         
-    } 
-    else 
-    {
-        logger.warning("Cannot broadcast board update. GameRoom is null.");
-    }
-}
-
-// Add a new method in ServerThread.java to send the board update to a specific client
-protected boolean sendBoardUpdate(Board board) throws IOException 
-{
-    Payload payload = new Payload();
-    payload.setPayloadType(PayloadType.BOARD_UPDATE);
-    payload.setBoard(board);
-
-    try
-    {
-        out.writeObject(payload);
-        return true;
-    }
-    catch (IOException e)
-    {
-        logger.warning("Failed to send BOARD_UPDATE payload to client " + getClientId());
-        e.printStackTrace();
-        return false;
-    }
-}
-
-    /* 
-    private void broadcastBoardUpdate(GameRoom currentGameRoom)
-    {
-        Payload boardUpdatePayload = new Payload();
-        boardUpdatePayload.setPayloadType(PayloadType.BOARD_UPDATE);
-        boardUpdatePayload.setBoard(currentGameRoom.getBoard());
-
-        for (ServerThread client : currentGameRoom.getClients())
+        } 
+        else 
         {
-            client.send(boardUpdatePayload);
+            logger.warning("Cannot broadcast board update. GameRoom is null.");
         }
     }
-    */
+
+    protected boolean sendBoardUpdate(Board board) throws IOException 
+    {
+        Payload payload = new Payload();
+        payload.setPayloadType(PayloadType.BOARD_UPDATE);
+        payload.setBoard(board);
+
+        try
+        {
+            out.writeObject(payload);
+            return true;
+        }
+        catch (IOException e)
+        {
+            logger.warning("Failed to send BOARD_UPDATE payload to client " + getClientId());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     private void cleanup() 
     {
         logger.info("Thread cleanup() start");
         try 
         {
+            if (out != null) 
+            {
+                out.close();
+            }
             client.close();
+            logger.info("Client disconnected intentionally");
         } 
         catch (IOException e) 
         {
-            logger.info("Client already closed");
+            logger.info("Error closing client resources");
         }
         logger.info("Thread cleanup() complete");
     }

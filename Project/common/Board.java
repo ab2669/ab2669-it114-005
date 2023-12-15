@@ -6,8 +6,10 @@ import server.GameRoom;
 
 public class Board implements Serializable
 {
-    //
     private GameRoom gameRoom;
+    private String[][] cells;
+
+    
 
     public GameRoom getGameRoom()
     {
@@ -18,55 +20,6 @@ public class Board implements Serializable
     {
         this.gameRoom = gameRoom;
     }
-    ///BOARD CREATION
-    private String[][] cells;
-
-    public Board(int rows, int cols)
-    {
-        cells = new String[rows][cols];
-        initializeBoard();
-    }
-
-    private void initializeBoard()
-    {
-        for (int i = 0; i < cells.length; i++)
-        {
-            for (int j = 0; j< cells[i].length; j++)
-            {
-                cells[i][j] = " ";
-            }
-        }
-    }
-
-    
-    public String printBoard()
-    {
-        StringBuilder result = new StringBuilder();
-
-        for (int i = 0; i < cells.length; i++) 
-        {
-            for (int j = 0; j < cells[i].length; j++) 
-            {
-                result.append("+---");
-            }
-                result.append("+\n");
-    
-            for (int j = 0; j < cells[i].length; j++) 
-            {
-                result.append("| " + (cells[i][j].equals(" ") ? "   " : cells[i][j]) + " ");
-            }
-            result.append("|\n");
-        }
-    
-        for (int j = 0; j < cells[0].length; j++) 
-        {
-            result.append("+---");
-        }
-        result.append("+\n");
-
-        return result.toString();
-    }
-    ///END
 
     public String getCellColor(int row, int col)
     {
@@ -98,10 +51,6 @@ public class Board implements Serializable
         this.cells = newBoard.cells;
     }
     
-    private boolean isValidCell(int row, int col)
-    {
-        return row >= 0 && row < cells.length && col >= 0 && col < cells[row].length;
-    }
 
     public int getRows()
     {
@@ -112,42 +61,55 @@ public class Board implements Serializable
     {
         return cells[0].length;
     }
-
-/*
-   @Override
-public String toString() 
-{
-    StringBuilder result = new StringBuilder();
-
-    // Print top border
-    result.append("+");
-    for (int i = 0; i < getCells(); i++) 
+    
+    public Board(int rows, int cols)
     {
-        result.append("-");
+        cells = new String[rows][cols];
+        initializeBoard();
     }
-    result.append("+\n");
-
-    // Print rows with borders
-    for (int i = 0; i < getRows(); i++) 
+    
+    public String printBoard()
     {
-        result.append("|");
-        for (int j = 0; j < getCells(); j++) 
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < cells.length; i++) 
         {
-            result.append(cells[i][j]);
+            for (int j = 0; j < cells[i].length; j++) 
+            {
+                result.append("+---");
+            }
+                result.append("+\n");
+    
+            for (int j = 0; j < cells[i].length; j++) 
+            {
+                result.append("| " + (cells[i][j].equals(" ") ? "   " : cells[i][j]) + " ");
+            }
+            result.append("|\n");
         }
-        result.append("|\n");
+    
+        for (int j = 0; j < cells[0].length; j++) 
+        {
+            result.append("+---");
+        }
+        result.append("+\n");
+
+        return result.toString();
     }
 
-    // Print bottom border
-    result.append("+");
-    for (int i = 0; i < getCells(); i++) 
+    private boolean isValidCell(int row, int col)
     {
-        result.append("-");
+        return row >= 0 && row < cells.length && col >= 0 && col < cells[row].length;
     }
-    result.append("+\n");
 
-    return result.toString();
-}
-*/
+    private void initializeBoard()
+    {
+        for (int i = 0; i < cells.length; i++)
+        {
+            for (int j = 0; j< cells[i].length; j++)
+            {
+                cells[i][j] = " ";
+            }
+        }
+    }
 }
     

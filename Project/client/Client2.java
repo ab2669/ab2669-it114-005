@@ -1,29 +1,26 @@
 package client;
-
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.net.ConnectException;
 import java.net.Socket;
-//import java.net.UnknownHostException;
+import java.net.UnknownHostException;
+import java.util.Scanner;
 import java.util.Hashtable;
-import java.util.logging.Logger;
-import java.util.Map.Entry;
 import java.util.Iterator;
-import common.Board;
-import common.Constants;
+import java.util.Map.Entry;
+import java.util.logging.Logger;
+
 import common.Payload;
 import common.PayloadType;
 import common.RoomResultPayload;
 import common.TimedEvent;
 import server.GameRoom;
-//import server.Room;
-//import server.ServerPlayer;
+import common.Constants;
+import common.Board;
 
-
-public enum Client 
+public enum Client2 
 {
-    INSTANCE;
+    Instance;
 
     Socket server = null;
     ObjectOutputStream out = null;
@@ -35,26 +32,31 @@ public enum Client
     private Thread fromServerThread;
     private String clientName = "";
     private long myClientId = Constants.DEFAULT_CLIENT_ID;
-    private static Logger logger = Logger.getLogger(Client.class.getName());
+    private static Logger logger = Logger.getLogger(Client2.class.getName());
     private GameRoom currentGameRoom;
+    //
     private Hashtable<Long, String> userList = new Hashtable<Long, String>();
     private Board board;
     private boolean isGameRoomInitialized = false;
-    private boolean isConnected = false;
+    private TimedEvent guessTimer;
 
-    private static IClientEvents events;
-    private IClientEvents.ConnectionCallback connectionCallback;
-
-    public interface ConnectionCallback {
-        void onConnectionSuccess();
-    }
-
-    public void setConnectionCallback(IClientEvents.ConnectionCallback callback) {
-        this.connectionCallback = callback;
-    }
-
-    public void setClientEventsListener(IClientEvents events) {
-        this.events = events;
+    private void sendPayload(Payload payload)
+    {
+        try
+        {
+            if (out != null)
+            {
+                out.writeObject(payload);
+            }
+            else
+            {
+                System.out.println("ObjectOutputStream not initialized.");
+            }
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
     }
 
     public boolean isConnected() 
@@ -67,38 +69,24 @@ public enum Client
 
     }
 
-    public boolean connect(String address, int port, String username, IClientEvents clientEvents) throws IOException
+    private boolean connect(String address, int port) 
     {
-        // TODO validate
-        this.clientName = username;
-        setClientName(username);
-        //Client.events = callback;
         try 
         {
             server = new Socket(address, port);
-            // channel to send to server
             out = new ObjectOutputStream(server.getOutputStream());
-            // channel to listen to server
             in = new ObjectInputStream(server.getInputStream());
             logger.info("Client connected");
+            initializeBoard(20, 20);
             listenForServerPayload();
-            sendConnect(username);
-
-            isConnected = true;
-
-            // Call the callback
-            if (connectionCallback != null) {
-                connectionCallback.onConnectionSuccess();
-            }
+            sendConnect();
         } 
-        catch (ConnectException e) 
+        catch (UnknownHostException e) 
         {
-            System.err.println("Error connecting to the server: " + e.getMessage());
             e.printStackTrace();
         } 
         catch (IOException e) 
         {
-            System.err.println("Error connecting to the server: " + e.getMessage());
             e.printStackTrace();
         }
         return isConnected();
@@ -134,32 +122,19 @@ public enum Client
         return false;
     }
 
+    @Deprecated // removing in Milestone3
     private boolean processClientCommand(String text) throws IOException 
     {
-        
-        if (text.startsWith("/guess"))
+        if (isConnection(text)) 
         {
-            //String guessedWord = text.replace("/guess", "".trim());
-            handleGuessCommand(text);
+            if (clientName.isBlank()) 
+            {
+                System.out.println("You must set your name before you can connect via: /name your_name");
+                return true;
+            }
+            String[] parts = text.trim().replaceAll(" +", " ").split(" ")[1].split(":");
+            connect(parts[0].trim(), Integer.parseInt(parts[1].trim()));
             return true;
-        }
-        ///START - Board Command implementation
-        else if (text.startsWith("/board"))
-        {
-            handleBoardCommand(text);
-            return true;
-        } 
-        ///END
-        ///START
-        else if(text.startsWith("/startguess"))
-        {
-            sendStartGuess();
-            return true;
-        }
-        ///END
-        else if(text.startsWith("/guess"))
-        {
-                ///////add something
         }
         else if (isQuit(text)) 
         {
@@ -171,7 +146,7 @@ public enum Client
         {
             return true;
         } 
-        else if (text.startsWith("/joinroom") || text.startsWith("/updateroom")) //added updateroom command to refresh board 
+        else if (text.startsWith("/joinroom") || text.startsWith("/updateboard"))
         {
             String roomName = text.replace("/joinroom", "").replace("/updateroom", "").trim();
             sendJoinRoom(roomName);
@@ -204,27 +179,26 @@ public enum Client
             }
             return true;
         }
+        else if (text.startsWith("/board"))
+        {
+            handleBoardCommand(text);
+            return true;
+        }
+        else if(text.startsWith("/startguess"))
+        {
+            sendStartGuess();
+            return true;
+        }
+        else if (text.startsWith("/guess"))
+        {
+            handleGuessCommand(text);
+            return true;
+        }
         return false;
     }
 
-    // Send methods
-    protected void sendConnect(String username) throws IOException 
-    {
-        Payload p = new Payload();
-        p.setPayloadType(PayloadType.CONNECT);
-        p.setClientName(clientName);
-        System.out.println("Debug: Client name set to " + clientName);
-        out.writeObject(p);
-    }
-
-    protected void sendReadyStatus() throws IOException 
-    {
-        Payload p = new Payload();
-        p.setPayloadType(PayloadType.READY);
-        out.writeObject(p);
-    }
-
-    public void sendListRooms(String query) throws IOException 
+    //Send methods
+    protected void sendListRooms(String query) throws IOException 
     {
         Payload p = new Payload();
         p.setPayloadType(PayloadType.GET_ROOMS);
@@ -232,7 +206,7 @@ public enum Client
         out.writeObject(p);
     }
 
-    public void sendJoinRoom(String roomName) throws IOException 
+    protected void sendJoinRoom(String roomName) throws IOException 
     {
         Payload p = new Payload();
         p.setPayloadType(PayloadType.JOIN_ROOM);
@@ -240,18 +214,7 @@ public enum Client
         out.writeObject(p);
     }
 
-    public boolean setClientName(String text) 
-    {
-        if (!text.isEmpty()) 
-        {
-            clientName = text.trim();
-            System.out.println("Name set to " + clientName);
-            return true;
-        }
-        return false;
-    }
-
-    public void sendCreateRoom(String roomName) throws IOException 
+    protected void sendCreateRoom(String roomName) throws IOException 
     {
         Payload p = new Payload();
         p.setPayloadType(PayloadType.CREATE_ROOM);
@@ -266,7 +229,15 @@ public enum Client
         out.writeObject(p);
     }
 
-    public void sendMessage(String message) throws IOException 
+    protected void sendConnect() throws IOException 
+    {
+        Payload p = new Payload();
+        p.setPayloadType(PayloadType.CONNECT);
+        p.setClientName(clientName);
+        out.writeObject(p);
+    }
+
+    protected void sendMessage(String message) throws IOException 
     {
         Payload p = new Payload();
         p.setPayloadType(PayloadType.MESSAGE);
@@ -275,27 +246,273 @@ public enum Client
         out.writeObject(p);
     }
 
-    private void handleGuessCommand(String text) {
-        // Split the text to extract the guessed word
-        String[] parts = text.split(" ", 2); // Split into two parts
-        if (parts.length == 2) {
-            String guessedWord = parts[1].trim();
-            sendGuessCommand(guessedWord);
-        } else {
-            System.out.println("Invalid guess command. Usage: /guess word");
+    protected void setCurrentGameRoom(GameRoom gameRoom) throws IOException
+    {
+        try
+        {
+            this.currentGameRoom = gameRoom;
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }   
+    }
+ 
+    //End of send methods
+
+    @Deprecated // remove in Milestone3
+    private void listenForKeyboard() 
+    {
+        inputThread = new Thread() 
+        {
+            @Override
+            public void run() 
+            {
+                logger.info("Listening for input");
+                try (Scanner si = new Scanner(System.in);) 
+                {
+                    String line = "";
+                    isRunning = true;
+                    while (isRunning) 
+                    {
+                        try 
+                        {
+                            logger.info("Waiting for input");
+                            line = si.nextLine();
+                            if (!processClientCommand(line)) 
+                            {
+                                if (isConnected()) {
+                                    if (line != null && line.trim().length() > 0)
+                                    {
+                                        sendMessage(line);
+                                    }
+
+                                } 
+                                else 
+                                {
+                                    logger.info("Not connected to server");
+                                }
+                            }
+                        } 
+                        catch (Exception e) 
+                        {
+                            logger.warning("Connection dropped");
+                            break;
+                        }
+                    }
+                    logger.info("Exited loop");
+                } 
+                catch (Exception e) 
+                {
+                    e.printStackTrace();
+                } 
+                finally 
+                {
+                    close();
+                }
+            }
+        };
+        inputThread.start();
+    }
+
+    private void listenForServerPayload() 
+    {
+        fromServerThread = new Thread() 
+        {
+            @Override
+            public void run() 
+            {
+                try 
+                {
+                    Payload fromServer;
+                    // while we're connected, listen for objects from the server
+                    while (isRunning && isConnected() && (fromServer = (Payload) in.readObject()) != null) 
+                    {
+                        processPayload(fromServer);
+                    }
+                    logger.info("listenForServerPayload() loop exited");
+                } 
+                catch (IOException e) 
+                {
+                    logger.warning("IOException in listenForServerPayload: " + e.getMessage());
+                    e.printStackTrace();
+                } 
+                catch (ClassNotFoundException e) 
+                {
+                    logger.warning("ClassNotFoundException in listenForServerPayload: " + e.getMessage());
+                    e.printStackTrace();
+                } 
+                finally 
+                {
+                    logger.info("Stopped listening to server input");
+                    close();
+                }
+            }
+        };
+        fromServerThread.start();
+    }
+    
+
+    protected String getClientNameById(long id) 
+    {
+        if (userList.containsKey(id)) 
+        {
+            return userList.get(id);
+        }
+        if (id == Constants.DEFAULT_CLIENT_ID) 
+        {
+            return "[Server]";
+        }
+        return "unknown user";
+    }
+
+    private void processPayload(Payload p) throws IOException 
+    {
+        switch (p.getPayloadType()) 
+        {
+            case CONNECT:
+                if (!userList.containsKey(p.getClientId())) 
+                {
+                    userList.put(p.getClientId(), p.getClientName());
+                }
+                System.out.println(String.format("*%s %s*",
+                        p.getClientName(),
+                        p.getMessage()));
+                break;
+            case DISCONNECT:
+                if (userList.containsKey(p.getClientId())) 
+                {
+                    userList.remove(p.getClientId());
+                }
+                if (p.getClientId() == myClientId) 
+                {
+                    myClientId = Constants.DEFAULT_CLIENT_ID;
+                }
+                System.out.println(String.format("*%s %s*",
+                        p.getClientName(),
+                        p.getMessage()));
+                break;
+            case SYNC_CLIENT:
+                if (!userList.containsKey(p.getClientId())) 
+                {
+                    userList.put(p.getClientId(), p.getClientName());
+                }
+                break;
+            case MESSAGE:
+                System.out.println(String.format("%s: %s",
+                        getClientNameById(p.getClientId()),
+                        p.getMessage()));
+                break;
+            case CLIENT_ID:
+                if (myClientId == Constants.DEFAULT_CLIENT_ID) 
+                {
+                    myClientId = p.getClientId();
+                } 
+                else 
+                {
+                    logger.warning("Receiving client id despite already being set");
+                }
+                break;
+            case GET_ROOMS:
+                RoomResultPayload rp = (RoomResultPayload) p;
+                System.out.println("Received Room List:");
+                if (rp.getMessage() != null) 
+                {
+                    System.out.println(rp.getMessage());
+                } 
+                else 
+                {
+                    for (int i = 0, l = rp.getRooms().length; i < l; i++) 
+                    {
+                        System.out.println(String.format("%s) %s", (i + 1), rp.getRooms()[i]));
+                    }
+                }
+                break;
+                ///
+            case BOARD_UPDATE:
+                handleBoardUpdate(p);
+                break;
+                ///
+            case START_GUESS:
+                handleStartGuess(p);
+                break;
+            case RESET_USER_LIST:
+                userList.clear();
+                break;
+            default:
+                logger.warning(String.format("Unhandled Payload type: %s", p.getPayloadType()));
+                break;
+
         }
     }
 
-    private void sendGuessCommand(String guessedWord) {
-        // Send the guess command to the server
-        try {
+    @Deprecated // removing in Milestone3
+    public void start() throws IOException 
+    {
+        listenForKeyboard();
+    }
+
+    //Board setup
+    public void initializeBoard(int rows, int cols)
+    {
+        board = new Board(rows, cols);
+    }
+
+    public void printBoard()
+    {
+        if (board != null)
+        {
+            board.printBoard();
+        }
+        else
+        {
+            System.out.println("Board not initialized.");
+        }
+    }
+    
+    public void fillCell(int row, int col, String color)
+    {
+        if (board != null)
+        {
+            board.fillCell(row, col, color);
+
             Payload payload = new Payload();
-            payload.setPayloadType(PayloadType.GUESS); // Change to GUESS payload type
-            payload.setMessage(guessedWord);
-            out.writeObject(payload);
-            out.flush();
-        } catch (IOException e) {
-            e.printStackTrace(); // Handle the exception based on your requirements
+            payload.setPayloadType(PayloadType.COORDINATES_AND_COLOR);
+            payload.setX(row);
+            payload.setY(col);
+            payload.setColor(color);
+
+            sendPayload(payload);
+        }
+        else
+        {
+            System.out.println("Board not initialized");
+        }
+    }
+
+    //Board commands
+    private void handleBoardUpdate(Payload p)
+    {
+        Board updatedBoard = p.getBoard();
+        if (updatedBoard != null)
+        {   
+            if(board == null)
+            {
+                initializeBoard(updatedBoard.getRows(), updatedBoard.getCells());
+            }
+            this.board.updateBoard(updatedBoard);
+            System.out.println("Board is updated!");
+            updatedBoard.printBoard();
+        
+            if (updatedBoard.getGameRoom() != null)
+            {
+                currentGameRoom = updatedBoard.getGameRoom();
+                isGameRoomInitialized = true;
+            }
+            else
+            {
+                logger.warning("Received BOARD_UPDATE payload with null board.");
+            }
         }
     }
 
@@ -326,202 +543,41 @@ public enum Client
 
         out.writeObject(p);
     }
-    // end send methods
 
-    private void listenForServerPayload() 
+    //Guessing
+    private void handleGuessCommand(String text) 
     {
-        isRunning = true;
-        fromServerThread = new Thread()
-        {
-            @Override
-            public void run()
-            {
-                try 
-                {
-                    //Payload fromServer;
-                    //fromServer = (Payload) in.readObject();
-
-                    Object receivedObject = in.readObject();
-
-                    if (receivedObject instanceof Payload) {
-                        Payload fromServer = (Payload) receivedObject;
-                        logger.info("Debug Info: " + fromServer);
-
-                        if (fromServer.getPayloadType() == PayloadType.BOARD_UPDATE) {
-                            handleBoardUpdate(fromServer);
-                            } else {
-                                    processPayload(fromServer);
-                                }
-                    } else {
-                    // Handle unexpected type (e.g., log an error)
-                    logger.warning("Received unexpected object type: " + receivedObject.getClass());
-                    }   
-
-                    
-                    /*
-                    // while we're connected, listen for objects from server
-                    while (isRunning && !server.isClosed() && !server.isInputShutdown() && (fromServer = (Payload) in.readObject()) != null) 
-                    {
-                        logger.info("Debug Info: " + fromServer);
-                        if (fromServer.getPayloadType() == PayloadType.BOARD_UPDATE)
-                        {
-                            handleBoardUpdate(fromServer);
-                            //boardUpdate((Board) fromServer.getBoard());
-                        }
-                        else 
-                        {
-                            processPayload(fromServer);
-                        }
-                    }
-                    logger.info("listenForServerPayload() loop exited");
-                    */
-                }
-                catch (ClassNotFoundException e) 
-                {
-                    e.printStackTrace();
-                } 
-                catch (IOException e) 
-                {
-                    e.printStackTrace();
-                }
-            }
-        };
-        //fromServerThread.start();// start the thread
-    }
-
-    
-    protected String getClientNameById(long id) 
-    {
-        if (userList.containsKey(id)) 
-        {
-            return userList.get(id);
+        String[] parts = text.split(" ", 2);
+        if (parts.length == 2) {
+            String guessedWord = parts[1].trim();
+            sendGuessCommand(guessedWord);
         }
-        if (id == Constants.DEFAULT_CLIENT_ID) 
+        else 
         {
-            return "[Server]";
+            System.out.println("Invalid guess command. Usage: /guess word");
         }
-        return "unknown user";
     }
     
-    private void processPayload(Payload p) throws IOException 
+    private void sendGuessCommand(String guessedWord) 
     {
-        switch (p.getPayloadType()) 
+        try 
         {
-            case CONNECT:
-                if (!userList.containsKey(p.getClientId())) 
-                {
-                    userList.put(p.getClientId(), p.getClientName());
-                }
-                System.out.println(String.format("*%s %s*",
-                        p.getClientName(),
-                        p.getMessage()));
-                events.onClientConnect(p.getClientId(), p.getClientName(), p.getMessage());
-                break;
-            case DISCONNECT:
-                if (userList.containsKey(p.getClientId())) 
-                {
-                    userList.remove(p.getClientId());
-                }
-                if (p.getClientId() == myClientId) 
-                {
-                    myClientId = Constants.DEFAULT_CLIENT_ID;
-                }
-                System.out.println(String.format("*%s %s*",
-                        p.getClientName(),
-                        p.getMessage()));
-                events.onClientDisconnect(p.getClientId(), p.getClientName(), p.getMessage());
-                break;
-            case SYNC_CLIENT:
-                if (!userList.containsKey(p.getClientId())) 
-                {
-                    userList.put(p.getClientId(), p.getClientName());
-                }
-                events.onSyncClient(p.getClientId(), p.getClientName());
-                break;
-            case MESSAGE:
-                System.out.println(String.format("%s: %s",
-                        getClientNameById(p.getClientId()),
-                        p.getMessage()));
-                events.onMessageReceive(p.getClientId(), p.getMessage());
-                break;
-            case CLIENT_ID:
-                if (myClientId == Constants.DEFAULT_CLIENT_ID) 
-                {
-                    myClientId = p.getClientId();
-                } 
-                else 
-                {
-                    logger.warning("Receiving client id despite already being set");
-                }
-                events.onReceiveClientId(p.getClientId());
-                break;
-            case GET_ROOMS:
-                RoomResultPayload rp = (RoomResultPayload) p;
-                System.out.println("Received Room List:");
-                if (rp.getMessage() != null) 
-                {
-                    System.out.println(rp.getMessage());
-                } 
-                else 
-                {
-                    for (int i = 0, l = rp.getRooms().length; i < l; i++) 
-                    {
-                        System.out.println(String.format("%s) %s", (i + 1), rp.getRooms()[i]));
-                    }
-                }
-                events.onReceiveRoomList(rp.getRooms(), rp.getMessage());
-                break;
-                ///
-            case BOARD_UPDATE:
-                handleBoardUpdate(p);
-                break;
-                ///
-            case START_GUESS:
-                handleStartGuess(p);
-                break;
-            case RESET_USER_LIST:
-                userList.clear();
-                events.onResetUserList();
-                break;
-            default:
-                logger.warning(String.format("Unhandled Payload type: %s", p.getPayloadType()));
-                break;
-
+            Payload payload = new Payload();
+            payload.setPayloadType(PayloadType.GUESS); // Change to GUESS payload type
+            payload.setMessage(guessedWord);
+            out.writeObject(payload);
+            out.flush();
+        } 
+        catch (IOException e) 
+        {
+            e.printStackTrace(); // Handle the exception based on your requirements
         }
     }
-
-    public void initializeBoard(int rows, int cols)
+    
+    private void handleStartGuess(Payload p) throws IOException 
     {
-        board = new Board(rows, cols);
-    }
-
-    private void handleBoardUpdate(Payload p)
-    {
-        Board updatedBoard = p.getBoard();
-        if (updatedBoard != null)
+        if (isGameRoomInitialized && p.getMessage().equalsIgnoreCase("/startguess")) 
         {   
-            if(board == null)
-            {
-                initializeBoard(updatedBoard.getRows(), updatedBoard.getCells());
-            }
-            this.board.updateBoard(updatedBoard);
-            System.out.println("Board is updated!");
-            updatedBoard.printBoard();
-        
-            if (updatedBoard.getGameRoom() != null)
-            {
-                currentGameRoom = updatedBoard.getGameRoom();
-                isGameRoomInitialized = true;
-            }
-            else
-            {
-                logger.warning("Received BOARD_UPDATE payload with null board.");
-            }
-        }
-    }
-
-    private void handleStartGuess(Payload p) throws IOException {
-        if (isGameRoomInitialized && p.getMessage().equalsIgnoreCase("/startguess")) {   
             logger.info("Debug: currentGameRoom is not null");
     
             Payload startGuessPayload = new Payload();
@@ -538,7 +594,7 @@ public enum Client
         }
     }
 
-    protected void sendStartGuess()
+    private void sendStartGuess()
     {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.START_GUESS);
@@ -551,7 +607,9 @@ public enum Client
             e.printStackTrace();
         }
     }
+    
 
+    //Timer Event
     private void startGuessTimer() 
     {
         int timerDuration = 120;
@@ -559,8 +617,6 @@ public enum Client
     
         this.guessTimer = guessTimer;
     }
-    
-    private TimedEvent guessTimer;
     
     private void cancelGuessTimer() 
     {
@@ -579,46 +635,81 @@ public enum Client
         }
     }
 
-    private void close() {
+    private void close() 
+    {
         myClientId = Constants.DEFAULT_CLIENT_ID;
         userList.clear();
-        try {
+        try 
+        {
             inputThread.interrupt();
-        } catch (Exception e) {
+        } 
+        catch (Exception e) 
+        {
             System.out.println("Error interrupting input");
             e.printStackTrace();
         }
-        try {
+        try 
+        {
             fromServerThread.interrupt();
-        } catch (Exception e) {
+        } 
+        catch (Exception e) 
+        {
             System.out.println("Error interrupting listener");
             e.printStackTrace();
         }
-        try {
+        try 
+        {
             System.out.println("Closing output stream");
             out.close();
-        } catch (NullPointerException ne) {
+        } 
+        catch (NullPointerException ne) 
+        {
             System.out.println("Server was never opened so this exception is ok");
-        } catch (Exception e) {
+        } 
+        catch (Exception e) 
+        {
             e.printStackTrace();
         }
-        try {
+        try 
+        {
             System.out.println("Closing input stream");
             in.close();
-        } catch (NullPointerException ne) {
+        } 
+        catch (NullPointerException ne) 
+        {
             System.out.println("Server was never opened so this exception is ok");
-        } catch (Exception e) {
+        } 
+        catch (Exception e) {
             e.printStackTrace();
         }
-        try {
+        try 
+        {
             System.out.println("Closing connection");
             server.close();
             System.out.println("Closed socket");
-        } catch (IOException e) {
+        } 
+        catch (IOException e) 
+        {
             e.printStackTrace();
-        } catch (NullPointerException ne) {
+        } 
+        catch (NullPointerException ne) 
+        {
             System.out.println("Server was never opened so this exception is ok");
         }
     }
-    
+
+    @Deprecated // removing in Milestone3
+    public static void main(String[] args) 
+    {
+        try 
+        {
+            // if start is private, it's valid here since this main is part of the class
+            Client2.Instance.start();
+
+        }
+        catch (IOException e) 
+        {
+            e.printStackTrace();
+        }
+    }
 }

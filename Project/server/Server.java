@@ -87,8 +87,6 @@ public enum Server
                         ServerThread ic = incomingClients.peek();
                         if (ic != null) 
                         {
-                            // wait for the thread to start and for the client to send the client name
-                            // (username)
                             if (ic.isRunning() && ic.getClientName() != null) 
                             {
                                 handleIncomingClient(ic);
@@ -104,10 +102,10 @@ public enum Server
 
     void handleIncomingClient(ServerThread client) 
     {
-        client.setClientId(nextClientId);// server reference
-        client.sendClientId(nextClientId);// client reference
+        client.setClientId(nextClientId);
+        client.sendClientId(nextClientId);
         nextClientId++;
-        if (nextClientId < 0) // will use overflow to reset our counter
+        if (nextClientId < 0)
         {
             nextClientId = 1;
         }
@@ -174,49 +172,6 @@ public enum Server
             logger.info(String.format("Created new room %s", roomName));
             return true;
         }
-        /*
-        roomName = roomName.trim();
-
-        if(roomName.isEmpty())
-        {
-            logger.info("Invalid room name (empty)");
-            return false;
-        }
-
-        if (getRoom(roomName) != null)
-        {
-            Board board = new Board(20,20);
-
-            GameRoom room = new GameRoom(roomName, port, nextClientId, board);
-            rooms.add(room);
-            logger.info(String.format("Created new room %s", roomName));
-            return true;
-        }
-        else
-        {
-            logger.info(String.format("Room %s already exists", roomName));
-            return false;
-        }
-        */
-        /* 
-        Room existingRoom = getRoom(roomName);
-        System.out.println("Existing Room: " + existingRoom);
-        if (getRoom(roomName) != null) 
-        {
-            //Creating new board for room
-            Board board = new Board(20, 20);
-            //Create new room with the given board
-            GameRoom room = new GameRoom(roomName, port, nextClientId, board);
-            rooms.add(room);
-            logger.info(String.format("Created new room %s", roomName));
-            return true;
-        } 
-        else 
-        {
-            logger.info(String.format("Room %s already exits", roomName));
-            return false;
-        }
-        */
     }
 
     
@@ -261,7 +216,6 @@ public enum Server
         {
             return;
         }
-        // loop over rooms and send out the message
         Iterator<Room> it = rooms.iterator();
         while (it.hasNext()) 
         {
@@ -273,7 +227,6 @@ public enum Server
         }
     }
 
-    //START
     private boolean processCommand(String message) 
     {
         System.out.println("Checking command: " + message);
@@ -293,7 +246,6 @@ public enum Server
         createNewRoom(roomName);
     }
 
-    //END
     public static void main(String[] args) 
     {
         Server.logger.info("Starting server");
